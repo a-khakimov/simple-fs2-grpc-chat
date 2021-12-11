@@ -1,0 +1,36 @@
+syntax = "proto2";
+
+package org.github.ainr;
+
+service ChatService {
+
+  rpc ChatStream(stream StreamData) returns (stream StreamData) { }
+}
+
+
+message StreamData {
+
+  oneof event {
+    Login    client_login    = 1;
+    Logout   client_logout   = 2;
+    Message  client_message  = 3;
+    Shutdown server_shutdown = 4;
+  }
+
+  message Login {
+    required string name = 1;
+  }
+
+  message Logout {
+    required string name = 1;
+  }
+
+  message Message {
+    required string name    = 1;
+    required string message = 2;
+  }
+
+  message Shutdown {
+
+  }
+}
