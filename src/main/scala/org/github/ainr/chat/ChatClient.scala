@@ -1,62 +1,95 @@
 package org.github.ainr.chat
 
-import io.grpc.ManagedChannelBuilder
-import io.grpc.stub.StreamObserver
+import cats.Functor
+import cats.effect.std.Console
+import cats.effect.{ExitCode, IO, IOApp, Resource, Sync}
+import cats.implicits.catsSyntaxApplicativeId
+import fansi.{Bold, Color}
+import fs2.concurrent.Topic
+import fs2.concurrent.Topic.Closed
+import fs2.grpc.client.ClientOptions
+import fs2.{INothing, Pipe, Stream}
+import fs2.grpc.syntax.all.fs2GrpcSyntaxManagedChannelBuilder
+import io.grpc.netty.shaded.io.grpc.netty.{NegotiationType, NettyChannelBuilder}
+import io.grpc.{ManagedChannel, Metadata}
 import org.github.ainr.chat.StreamData.Event.{ClientLogin, ClientLogout, ClientMessage, ServerShutdown}
+import org.github.ainr.chat.StreamData.{Login, Message}
+import org.github.ainr.chat._
 
-import scala.annotation.tailrec
-import scala.io.StdIn
+import scala.concurrent.duration.DurationInt
 
-object ChatClientApp {
+object ChatClient extends IOApp {
 
-  final def main(args: Array[String]): Unit = {
-
-    val name = args.headOption.getOrElse("Anonymous")
-
-    val channel = ManagedChannelBuilder
-      .forAddress("localhost", 50053)
-      .usePlaintext
-      .build
-
-    val chatClient = ChatServiceGrpc.stub(channel).chatStream(
-      new StreamObserver[StreamData] {
-        override def onNext(value: StreamData): Unit = {
-          value.event match {
-            case ClientLogin(value) =>
-              println(s"[Login] ${value.name}")
-            case ClientLogout(value) =>
-              println(s"[Logout] ${value.name}")
-            case ClientMessage(value) =>
-              println(s"[Message from ${value.name}] ${value.message}")
-            case ServerShutdown(_) =>
-              println(s"Server shutdown")
-            case unknown =>
-              println(s"Unknown event - $unknown")
-          }
-        }
-
-        override def onError(t: Throwable): Unit = println(s"Error ${t.getMessage}")
-        override def onCompleted(): Unit = println("Completed")
+  def inputStream[F[_]: Sync](
+    name: String,
+    bufSize: Int
+  )(
+    implicit
+    console: Console[F]
+  ): Stream[F, StreamData] = {
+    fs2.io.stdinUtf8(bufSize)
+      .through(fs2.text.lines)
+      .evalTap(_ => console.print("\u001b[1A\u001b[0K"))
+      .filter(_.nonEmpty)
+      .evalMap { text =>
+        StreamData(ClientMessage(Message(name = name, message = text))).pure
       }
-    )
+  }
 
+  val managedChannelResource: Resource[IO, ManagedChannel] =
+    NettyChannelBuilder
+      .forAddress("127.0.0.1", 50053)
+      .enableRetry()
+      .usePlaintext()
+      .resource[IO]
 
-    def login(): Unit = chatClient.onNext(StreamData(ClientLogin(StreamData.Login(name))))
-
-    def logout(): Unit = chatClient.onNext(StreamData(ClientLogout(StreamData.Logout(name))))
-
-    def sendMessage(message: String): Unit = chatClient.onNext(StreamData(ClientMessage(StreamData.Message(name, message))))
-
-    sys.addShutdownHook(logout())
-
-    @tailrec
-    def program(): Unit = {
-      val message = StdIn.readLine()
-      sendMessage(message)
-      program()
+  def runProgram[F[_]: Functor](
+    chatService: org.github.ainr.chat.ChatServiceFs2Grpc[F, Metadata],
+    input: Stream[F, StreamData]
+  )(
+    implicit
+    console: Console[F]
+  ): Stream[F, StreamData] = {
+    //val request = StreamData(ClientLogin(Login(name = "Hui")))
+    def processEvent: Pipe[F, StreamData, INothing] = _.foreach { data =>
+      data.event match {
+        case event: ClientLogin =>
+          console.println(s"${Color.Green(event.value.name).overlay(Bold.On)} entered the chat.")
+        case event: ClientLogout =>
+          console.println(s"${Color.Blue(event.value.name).overlay(Bold.On)} left the chat.")
+        case event: ClientMessage =>
+          console.println(s"${Color.LightGray(s"${event.value.name}:").overlay(Bold.On)} ${event.value.message}")
+        case _: ServerShutdown =>
+          console.println(s"${Color.LightRed("Server shutdown")}")
+        case unknown =>
+          console.println(s"${Color.Red("Unknown event:")} $unknown")
+      }
     }
 
-    login()
-    program()
+      chatService
+        .chatStream(input, new Metadata())
+        .through(processEvent)
+    }
+
+
+  override def run(args: List[String]): IO[ExitCode] = {
+    val name = args.headOption.getOrElse("Anonymous")
+    managedChannelResource
+      .flatMap(
+        channel =>
+          ChatServiceFs2Grpc.stubResource[IO](
+            channel,
+            ClientOptions.default
+          )
+      )
+      .use { case chatClient =>
+        runProgram[IO](
+          chatClient,
+          fs2.Stream[IO, StreamData](StreamData(ClientLogin(Login(name)))) ++ inputStream[IO](name, bufSize = 1024)
+        )
+        .compile
+        .drain
+      }
+      .as(ExitCode.Success)
   }
 }

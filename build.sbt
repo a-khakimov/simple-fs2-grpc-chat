@@ -1,15 +1,15 @@
-name := "server"
+name := "Simple fs2-grpc Chat"
 
 version := "0.1"
 
 scalaVersion := "2.13.7"
 
-Compile / PB.targets := Seq(
-  scalapb.gen() -> (Compile / sourceManaged).value / "scalapb"
+libraryDependencies ++= Seq(
+  "io.grpc"                       % "grpc-netty-shaded"    % scalapb.compiler.Version.grpcJavaVersion,
+  "ch.qos.logback"                % "logback-classic"      % "1.2.3",
+  "com.typesafe.scala-logging"   %% "scala-logging"        % "3.9.4",
+  "com.lihaoyi"                  %% "fansi"                % "0.3.0",
+  "co.fs2"                       %% "fs2-io"               % "3.2.5"
 )
 
-libraryDependencies ++= Seq(
-  "com.thesamet.scalapb" %% "scalapb-runtime" % scalapb.compiler.Version.scalapbVersion % "protobuf",
-  "com.thesamet.scalapb" %% "scalapb-runtime-grpc" % scalapb.compiler.Version.scalapbVersion,
-  "io.grpc" % "grpc-netty" % scalapb.compiler.Version.grpcJavaVersion
-)
+enablePlugins(Fs2Grpc)

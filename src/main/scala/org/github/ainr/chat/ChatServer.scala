@@ -1,80 +1,68 @@
 package org.github.ainr.chat
 
-import io.grpc.stub.StreamObserver
-import io.grpc.ServerBuilder
-import org.github.ainr.chat.StreamData.Event.{ClientLogin, ClientLogout, ClientMessage, ServerShutdown}
+import cats.Applicative
+import cats.effect.kernel.Temporal
+import cats.effect.std.Console
+import cats.effect.{ExitCode, IO, IOApp, Resource}
+import fs2.Stream
+import fs2.concurrent.Topic
+import fs2.grpc.server.ServerOptions
+import fs2.grpc.syntax.all._
+import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
+import io.grpc.{Metadata, ServerServiceDefinition}
 
-import java.util.logging.Logger
-import scala.collection.mutable
-import scala.concurrent.ExecutionContext
+import java.util.concurrent.TimeUnit
 
-object ChatService {
-  def apply(
-    implicit
-    ec: ExecutionContext
-  ): ChatServiceGrpc.ChatService = new ChatServiceGrpc.ChatService {
+class ChatServiceImpl[
+  F[_]
+  : Applicative
+  : Temporal
+](
+  eventsTopic: Topic[F, org.github.ainr.chat.StreamData]
+)(
+  implicit
+  console: Console[F]
+) extends ChatServiceFs2Grpc[F, Metadata] {
 
-    private val logger = Logger.getLogger(getClass.getName)
+  val events: Stream[F, StreamData] =
+    eventsTopic
+      .subscribe(100)
+      .evalTap(data => console.println(s"From topic: $data"))
 
-    val users = mutable.Set.empty[StreamObserver[StreamData]]
-
-    override def chatStream(responseObserver: StreamObserver[StreamData]): StreamObserver[StreamData] = {
-
-      logger.info(s"Chat stream for $responseObserver")
-      users.add(responseObserver)
-
-      new StreamObserver[StreamData] {
-        override def onNext(value: StreamData): Unit = {
-          value.event match {
-            case ClientLogin(value) =>
-              logger.info(s"ClientLogin: ${value.name}")
-              users.foreach(_.onNext(StreamData(ClientLogin(value))))
-            case ClientLogout(value) =>
-              logger.info(s"ClientLogout: ${value.name}")
-              users.foreach(_.onNext(StreamData(ClientLogout(value))))
-            case ClientMessage(value) =>
-              logger.info(s"ClientMessage: ${value.name} - ${value.message}")
-              users.foreach(_.onNext(StreamData(ClientMessage(value))))
-            case ServerShutdown(value) =>
-              logger.info(s"ServerShutdown")
-              users.foreach(_.onNext(StreamData(ServerShutdown(value))))
-            case unknown =>
-              logger.info(s"$unknown")
-          }
-        }
-
-        override def onError(t: Throwable): Unit = {
-          logger.info(s"Error ${t.getMessage}")
-          users.remove(responseObserver)
-        }
-
-        override def onCompleted(): Unit = {
-          logger.info(s"Completed")
-          users.remove(responseObserver)
-        }
-      }
-    }
+  override def chatStream(
+    request: fs2.Stream[F, StreamData],
+    ctx: Metadata
+  ): fs2.Stream[F, StreamData] = {
+    events.concurrently(
+      request
+        .evalTap(s => console.println(s"From request: $s"))
+        .evalTap(eventsTopic.publish1)
+    )
   }
 }
 
-object ChatServerApp {
+object ChatService extends IOApp {
 
-  val ec = ExecutionContext.global
-
-  final def main(args: Array[String]): Unit = {
-
-    val port: Int =
-      args
-        .headOption
-        .map(_.toInt)
-        .getOrElse(50053)
-
-    ServerBuilder
-      .forPort(port)
-      .addService(ChatServiceGrpc.bindService(ChatService(ec), ec))
-      .build()
-      .start()
-      .awaitTermination()
+  def chatService(topic: Topic[IO, StreamData]): Resource[IO, ServerServiceDefinition] = {
+    ChatServiceFs2Grpc.bindServiceResource[IO](
+      new ChatServiceImpl[IO](topic),
+      ServerOptions.default
+    )
   }
+
+  def runService(service: ServerServiceDefinition): IO[Nothing] = {
+    NettyServerBuilder
+      .forPort(50053)
+      .keepAliveTime(500, TimeUnit.SECONDS)
+      .addService(service)
+      .resource[IO]
+      .evalMap(server => IO(server.start()))
+      .useForever
+  }
+
+  override def run(args: List[String]): IO[ExitCode] = for {
+    topic <- Topic[IO, StreamData]
+    _ <- chatService(topic).use(runService)
+  } yield ExitCode.Success
 }
 
