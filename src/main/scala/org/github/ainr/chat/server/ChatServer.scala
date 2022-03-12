@@ -1,4 +1,4 @@
-package org.github.ainr.chat
+package org.github.ainr.chat.server
 
 import cats.Applicative
 import cats.effect.kernel.Temporal
@@ -10,6 +10,7 @@ import fs2.grpc.server.ServerOptions
 import fs2.grpc.syntax.all._
 import io.grpc.netty.shaded.io.grpc.netty.NettyServerBuilder
 import io.grpc.{Metadata, ServerServiceDefinition}
+import org.github.ainr.chat.{ChatServiceFs2Grpc, StreamData}
 
 import java.util.concurrent.TimeUnit
 
