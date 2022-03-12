@@ -4,12 +4,18 @@ version := "0.1"
 
 scalaVersion := "2.13.7"
 
+lazy val root = (project in file("."))
+  .settings(
+    name := "gRPC-Chat",
+    assembly / assemblyJarName := "gRPC-Chat.jar"
+  )
+
 libraryDependencies ++= Seq(
-  "io.grpc"                       % "grpc-netty-shaded"    % scalapb.compiler.Version.grpcJavaVersion,
-  "ch.qos.logback"                % "logback-classic"      % "1.2.3",
-  "com.typesafe.scala-logging"   %% "scala-logging"        % "3.9.4",
-  "com.lihaoyi"                  %% "fansi"                % "0.3.0",
-  "co.fs2"                       %% "fs2-io"               % "3.2.5"
+  "io.grpc" % "grpc-netty-shaded" % scalapb.compiler.Version.grpcJavaVersion,
+  "ch.qos.logback" % "logback-classic" % "1.2.3",
+  "com.typesafe.scala-logging" %% "scala-logging" % "3.9.4",
+  "com.lihaoyi" %% "fansi" % "0.3.0",
+  "co.fs2" %% "fs2-io" % "3.2.5"
 )
 
 enablePlugins(Fs2Grpc)

@@ -10,9 +10,9 @@ import org.github.ainr.chat.{ChatServiceFs2Grpc, StreamData}
 
 import java.util.concurrent.TimeUnit
 
-object ChatServiceApp extends IOApp {
+object ChatServerApp extends IOApp {
 
-  def runService(service: ServerServiceDefinition): IO[Nothing] = {
+  def runServer(service: ServerServiceDefinition): IO[Nothing] = {
     NettyServerBuilder
       .forPort(50053)
       .keepAliveTime(500, TimeUnit.SECONDS)
@@ -27,7 +27,6 @@ object ChatServiceApp extends IOApp {
     _ <- ChatServiceFs2Grpc.bindServiceResource[IO](
       ChatService[IO](topic),
       ServerOptions.default
-    ).use(runService)
+    ).use(runServer)
   } yield ExitCode.Success
 }
-

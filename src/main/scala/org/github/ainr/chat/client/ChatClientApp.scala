@@ -10,8 +10,12 @@ import org.github.ainr.chat.ChatServiceFs2Grpc
 object ChatClientApp extends IOApp {
 
   def resources: Resource[IO, ChatServiceFs2Grpc[IO, Metadata]] = for {
-    channel <- NettyChannelBuilder.forAddress("127.0.0.1", 50053).usePlaintext().resource[IO]
-    chatClient <- ChatServiceFs2Grpc.stubResource[IO](channel, ClientOptions.default)
+    channel <- NettyChannelBuilder.forAddress(
+      "127.0.0.1",
+      50053
+    ).usePlaintext().resource[IO]
+    chatClient <-
+      ChatServiceFs2Grpc.stubResource[IO](channel, ClientOptions.default)
   } yield chatClient
 
   override def run(args: List[String]): IO[ExitCode] =

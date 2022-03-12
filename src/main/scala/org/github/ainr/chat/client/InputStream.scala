@@ -10,11 +10,8 @@ trait InputStream[F[_]] {
 
 object InputStream {
 
-  def apply[F[_]: Sync](
-    bufSize: Int
-  )(
-    implicit
-    console: Console[F]
+  def apply[F[_]: Sync: Console](
+      bufSize: Int
   ): InputStream[F] = new InputStream[F] {
 
     override def read: Stream[F, String] = {
@@ -26,7 +23,7 @@ object InputStream {
     }
 
     private def erase: PartialFunction[String, F[Unit]] = {
-      _ => console.print("\u001b[1A\u001b[0K")
+      _ => Console[F].print("\u001b[1A\u001b[0K")
     }
   }
 }

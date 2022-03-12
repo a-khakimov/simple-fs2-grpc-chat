@@ -3,10 +3,10 @@
 * Run server
 
 ```bash
-$ sbt "runMain org.github.ainr.chat.ChatServerApp"
+$ sbt "runMain org.github.ainr.chat.server.ChatServerApp"
 ```
 
-* Running client with name
+* Run client
 
 ```bash
 $ sbt "runMain org.github.ainr.chat.client.ChatClientApp Anton"
