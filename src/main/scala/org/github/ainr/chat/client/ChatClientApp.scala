@@ -18,7 +18,7 @@ object ChatClientApp extends IOApp {
     resources.use { chatServiceFs2Grpc =>
       val name = args.headOption.getOrElse("Anonymous")
       val inputStream = InputStream[IO](bufSize = 1024)
-      val chatClientService = ChatClientService(name, inputStream, chatServiceFs2Grpc)
+      val chatClientService = ChatClient(name, inputStream, chatServiceFs2Grpc)
       chatClientService.start
     }.as(ExitCode.Success)
 }
