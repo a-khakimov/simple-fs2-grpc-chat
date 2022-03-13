@@ -27,7 +27,7 @@ jobs:
         uses: garygrossgarten/github-action-scp@release
         with:
           local: target/scala-2.13/gRPC-Chat.jar
-          remote: /home/botbek/builds/gRPC-Chat.jar
+          remote: /home/grpc-chat/builds/gRPC-Chat.jar
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
