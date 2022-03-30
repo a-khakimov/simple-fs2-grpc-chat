@@ -5,12 +5,7 @@ import cats.effect.std.Console
 import fansi.{Bold, Color}
 import fs2.{INothing, Pipe}
 import io.grpc.Metadata
-import org.github.ainr.chat.StreamData.Event.{
-  ClientLogin,
-  ClientLogout,
-  ClientMessage,
-  ServerShutdown
-}
+import org.github.ainr.chat.StreamData.Event.{ClientLogin, ClientLogout, ClientMessage, ServerShutdown}
 import org.github.ainr.chat.StreamData.{Login, Message}
 import org.github.ainr.chat.{ChatServiceFs2Grpc, StreamData}
 
@@ -33,12 +28,11 @@ object ChatClient {
     override def start: F[Unit] = {
       chatService
         .chatStream(
-          login(clientName) ++ inputStream.read.through(
-            handleInput(clientName)
-          ),
+          login(clientName) ++ inputStream.read.through(handleInput),
           grpcMetaData
         )
         .through(processEvent)
+        .through(writeToConsole)
         .compile
         .drain
     }
@@ -46,39 +40,27 @@ object ChatClient {
     private def login(clientName: String): fs2.Stream[F, StreamData] =
       fs2.Stream(StreamData(ClientLogin(Login(clientName))))
 
-    private def processEvent: Pipe[F, StreamData, INothing] =
-      _.foreach { data =>
+    private def processEvent: Pipe[F, StreamData, String] =
+      _.map { data =>
         data.event match {
-          case event: ClientLogin =>
-            Console[F].println(
-              s"${Color.Green(event.value.name).overlay(Bold.On)} entered the chat."
-            )
-          case event: ClientLogout =>
-            Console[F].println(
-              s"${Color.Blue(event.value.name).overlay(Bold.On)} left the chat."
-            )
-          case event: ClientMessage =>
-            Console[F].println(
-              s"${Color.LightGray(s"${event.value.name}:").overlay(Bold.On)} ${event.value.message}"
-            )
-          case _: ServerShutdown =>
-            Console[F].println(s"${Color.LightRed("Server shutdown")}")
-          case unknown =>
-            Console[F].println(s"${Color.Red("Unknown event:")} $unknown")
+          case event: ClientLogin   => s"${Color.Green(event.value.name).overlay(Bold.On)} entered the chat."
+          case event: ClientLogout  => s"${Color.Blue(event.value.name).overlay(Bold.On)} left the chat."
+          case event: ClientMessage => s"${Color.LightGray(s"${event.value.name}:").overlay(Bold.On)} ${event.value.message}"
+          case _: ServerShutdown    => s"${Color.LightRed("Server shutdown")}"
+          case unknown              => s"${Color.Red("Unknown event:")} $unknown"
         }
       }
 
-    private def handleInput(clientName: String): Pipe[F, String, StreamData] =
-      _.map {
-        text =>
-          StreamData(
-            ClientMessage(
-              Message(
-                name = clientName,
-                message = text
-              )
-            )
+    private def writeToConsole: Pipe[F, String, INothing] =
+      _.foreach(Console[F].println)
+
+    private def handleInput: Pipe[F, String, StreamData] =
+      _.map { text =>
+        StreamData(
+          ClientMessage(
+            Message(name = clientName, message = text)
           )
+        )
       }
   }
 }
