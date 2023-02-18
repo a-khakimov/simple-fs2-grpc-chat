@@ -10,9 +10,7 @@ import org.github.ainr.chat.{ChatServiceFs2Grpc, StreamData}
 
 object ChatService {
 
-  def apply[
-      F[_]: Applicative: Temporal: Console
-  ](
+  def apply[F[_]: Applicative: Temporal: Console](
       eventsTopic: Topic[F, StreamData]
   ): ChatServiceFs2Grpc[F, Metadata] = new ChatServiceFs2Grpc[F, Metadata] {
 

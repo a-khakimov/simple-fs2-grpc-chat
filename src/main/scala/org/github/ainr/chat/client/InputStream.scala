@@ -1,6 +1,6 @@
 package org.github.ainr.chat.client
 
-import cats.effect.Sync
+import cats.effect.Async
 import cats.effect.std.Console
 import fs2.Stream
 
@@ -10,20 +10,19 @@ trait InputStream[F[_]] {
 
 object InputStream {
 
-  def apply[F[_]: Sync: Console](
-      bufSize: Int
-  ): InputStream[F] = new InputStream[F] {
+  def apply[F[_]: Async: Console](bufSize: Int): InputStream[F] =
+    new InputStream[F] {
 
-    override def read: Stream[F, String] = {
-      fs2.io
-        .stdinUtf8(bufSize)
-        .through(fs2.text.lines)
-        .evalTap(erase)
-        .filter(_.nonEmpty)
-    }
+      override def read: Stream[F, String] = {
+        fs2.io
+          .stdinUtf8(bufSize)
+          .through(fs2.text.lines)
+          .evalTap(erase)
+          .filter(_.nonEmpty)
+      }
 
-    private def erase: PartialFunction[String, F[Unit]] = {
-      _ => Console[F].print("\u001b[1A\u001b[0K")
+      private def erase: PartialFunction[String, F[Unit]] = {
+        _ => Console[F].print("\u001b[1A\u001b[0K")
+      }
     }
-  }
 }

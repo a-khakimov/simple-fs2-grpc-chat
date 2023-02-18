@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit
 
 object ChatServerApp extends IOApp {
 
-  def runServer(service: ServerServiceDefinition): IO[Nothing] = {
+  private def runServer(service: ServerServiceDefinition): IO[Unit] = {
     NettyServerBuilder
       .forPort(50053)
       .keepAliveTime(500, TimeUnit.SECONDS)
@@ -20,6 +20,7 @@ object ChatServerApp extends IOApp {
       .resource[IO]
       .evalMap(server => IO(server.start()))
       .useForever
+      .void
   }
 
   override def run(args: List[String]): IO[ExitCode] = for {

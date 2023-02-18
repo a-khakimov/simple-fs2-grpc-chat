@@ -3,7 +3,7 @@ package org.github.ainr.chat.client
 import cats.effect.kernel.Concurrent
 import cats.effect.std.Console
 import fansi.{Bold, Color}
-import fs2.{INothing, Pipe}
+import fs2.Pipe
 import io.grpc.Metadata
 import org.github.ainr.chat.StreamData.Event.{ClientLogin, ClientLogout, ClientMessage, ServerShutdown}
 import org.github.ainr.chat.StreamData.{Login, Message}
@@ -15,9 +15,7 @@ trait ChatClient[F[_]] {
 
 object ChatClient {
 
-  def apply[
-      F[_]: Concurrent: Console
-  ](
+  def apply[F[_]: Concurrent: Console](
       clientName: String,
       inputStream: InputStream[F],
       chatService: ChatServiceFs2Grpc[F, Metadata]
@@ -51,7 +49,7 @@ object ChatClient {
         }
       }
 
-    private def writeToConsole: Pipe[F, String, INothing] =
+    private def writeToConsole: Pipe[F, String, Nothing] =
       _.foreach(Console[F].println)
 
     private def handleInput: Pipe[F, String, StreamData] =
