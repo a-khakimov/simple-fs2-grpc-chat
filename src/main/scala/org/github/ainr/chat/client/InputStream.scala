@@ -10,7 +10,8 @@ trait InputStream[F[_]] {
 
 object InputStream {
 
-  def apply[F[_]: Async: Console](bufSize: Int): InputStream[F] =
+  def apply[F[_]: Async: Console](bufSize: Int): InputStream[F] = {
+
     new InputStream[F] {
 
       override def read: Stream[F, String] = {
@@ -25,4 +26,5 @@ object InputStream {
         _ => Console[F].print("\u001b[1A\u001b[0K")
       }
     }
+  }
 }

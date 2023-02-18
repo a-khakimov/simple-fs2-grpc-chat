@@ -5,9 +5,14 @@ import cats.effect.std.Console
 import fansi.{Bold, Color}
 import fs2.Pipe
 import io.grpc.Metadata
-import org.github.ainr.chat.StreamData.Event.{ClientLogin, ClientLogout, ClientMessage, ServerShutdown}
-import org.github.ainr.chat.StreamData.{Login, Message}
-import org.github.ainr.chat.{ChatServiceFs2Grpc, StreamData}
+import org.github.ainr.chat.Events.Event.{
+  ClientLogin,
+  ClientLogout,
+  ClientMessage,
+  ServerShutdown
+}
+import org.github.ainr.chat.Events.{Login, Message}
+import org.github.ainr.chat.{ChatServiceFs2Grpc, Events}
 
 trait ChatClient[F[_]] {
   def start: F[Unit]
@@ -21,24 +26,24 @@ object ChatClient {
       chatService: ChatServiceFs2Grpc[F, Metadata]
   ): ChatClient[F] = new ChatClient[F] {
 
-    private val grpcMetaData = new Metadata()
+    private val grpcMetaData = new Metadata() // empty
 
     override def start: F[Unit] = {
       chatService
-        .chatStream(
-          login(clientName) ++ inputStream.read.through(handleInput),
+        .eventsStream(
+          login(clientName) ++ inputStream.read.through(inputToEvent),
           grpcMetaData
         )
-        .through(processEvent)
+        .through(processEventsFromServer)
         .through(writeToConsole)
         .compile
         .drain
     }
 
-    private def login(clientName: String): fs2.Stream[F, StreamData] =
-      fs2.Stream(StreamData(ClientLogin(Login(clientName))))
+    private def login(clientName: String): fs2.Stream[F, Events] =
+      fs2.Stream(Events(ClientLogin(Login(clientName))))
 
-    private def processEvent: Pipe[F, StreamData, String] =
+    private def processEventsFromServer: Pipe[F, Events, String] =
       _.map { data =>
         data.event match {
           case event: ClientLogin   => s"${Color.Green(event.value.name).overlay(Bold.On)} entered the chat."
@@ -52,9 +57,9 @@ object ChatClient {
     private def writeToConsole: Pipe[F, String, Nothing] =
       _.foreach(Console[F].println)
 
-    private def handleInput: Pipe[F, String, StreamData] =
+    private def inputToEvent: Pipe[F, String, Events] =
       _.map { text =>
-        StreamData(
+        Events(
           ClientMessage(
             Message(name = clientName, message = text)
           )

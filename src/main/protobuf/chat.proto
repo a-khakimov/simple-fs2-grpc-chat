@@ -4,11 +4,11 @@ package org.github.ainr;
 
 service ChatService {
 
-  rpc ChatStream(stream StreamData) returns (stream StreamData) { }
+  rpc eventsStream(stream Events) returns (stream Events) { }
 }
 
 
-message StreamData {
+message Events {
 
   oneof event {
     Login    client_login    = 1;
